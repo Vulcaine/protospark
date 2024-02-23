@@ -1,6 +1,6 @@
 {
   "name": "protospark",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A streamlined solution for encoding and decoding protocol buffers effortlessly, ensuring type safety throughout the process.",
   "main": "index.ts",
   "module": "./dist/index.mjs",
