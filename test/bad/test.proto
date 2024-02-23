@@ -1,0 +1,4 @@
+message CorrectMessage {
+  string type = 1;
+  string some_field = 2;
+}

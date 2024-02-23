@@ -1,0 +1,11 @@
+syntax="proto3";
+
+message CorrectMessage {
+  string type = 1;
+  string some_field = 2;
+}
+
+message CorrectMessage2 {
+  string type = 1;
+  string some_field = 2;
+}

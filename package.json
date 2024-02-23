@@ -1,0 +1,28 @@
+{
+  "name": "protospark",
+  "version": "1.0.0",
+  "description": "A streamlined solution for encoding and decoding protocol buffers effortlessly, ensuring type safety throughout the process.",
+  "main": "index.ts",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "jest",
+    "build": "tsup",
+    "start": "node ./dist/index.js",
+    "start:build": "npm run build && npm start"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@types/jest": "^29.5.12",
+    "protobufjs": "^7.2.6"
+  },
+  "license": "ISC"
+}
