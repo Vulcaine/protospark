@@ -51,7 +51,7 @@ const decoded = codec.decode(MyAwesomeMessage, buffer);
 
 ### Load from string
 
-Protospark is able compile schema from string as well:
+Protospark is able to compile schema from string as well:
 
 ```javascript
 const protospark = require("protospark");
