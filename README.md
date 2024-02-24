@@ -19,6 +19,12 @@ const protospark = require("protospark");
 
 **Please note:** This package does not include a feature to generate JavaScript files from Protocol Buffer (.proto) files. For this purpose, **you should utilize the protobufjs-cli package**.
 
+## 2.0, whats new?
+
+- Predictive encoding and decoding
+- - With this approach, we accept a slight performance overhead to facilitate easier type inference.
+- On-the-fly generation of proto/JS files from schema definitions defined in code.
+
 ## Usage
 
 ---
@@ -39,9 +45,24 @@ message MyAwesomeMessage {
 Important first step is to compile the proto file using the protobufjs-cli, see:
 [protobufjs-cli](https://www.npmjs.com/package/protobufjs)
 
+### --- OR ---
+
+Define the javascript entity in code as well:
+
+```javascript
+class MyAwesomeMessage {
+  type;
+  someField;
+}
+```
+
+The method above is somewhat impractical as it requires defining the same schema twice, but it remains a viable option. Alternatively, leveraging the new 2.0 features could automate the generation of message types.
+
+### Example of creating a simple encoder and decoder
+
 ```javascript
 const protospark = require("protospark");
-const options = { verifyByDefault: true };
+const options = { ... options here ... };
 const codec = protospark.ProtosparkCodec.fromPath(
   "some/directory/to/proto/files",
   options
@@ -62,7 +83,7 @@ Protospark is able to compile schema from string as well:
 
 ```javascript
 const protospark = require("protospark");
-const options = { verifyByDefault: true };
+const options = { ... options here ... };
 const codec = protospark.ProtosparkCodec.fromString(
   `syntax="proto3";
 
@@ -82,40 +103,11 @@ const buffer = codec
 const decoded = codec.decode(buffer).to(MyAwesomeMessage);
 ```
 
-## ✨ NEW ✨ Predictive decoding
-
----
-
-If you looking for a way to avoid specifying the output type for the decode method, you can achieve this with the new predictive decoding feature:
-
-```javascript
-// ...
-const encoded = codec.encode(message, { verify: true }).predictive();
-const decoded = codec.decode(encoded).predictive();
-// ...
-```
-
-**This feature having the following limitations:**
-
-- The initial 32 bytes of the buffer must represent the type parameter in hexadecimal format.
-- The length of the type parameter cannot exceed 32 bytes, which should provide ample space for this parameter.
-- Expect an overhead increase for decoding, although usually negligible, it's important to acknowledge.
-
-### Options
-
-You can provide these options when creating the codec: `protospark.ProtosparkCodec.fromPath(path, options)`
-
-| option                       | description                                                                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PredictiveDecodeOptions.algo | The symmetric encryption algorithm e.g. "aes-256-cbc". `The default value is: "aes-256-cbc"`                                                                                                |
-| PredictiveDecodeOptions.key  | The secret key for the algorithm, specifying this parameter is not necessary. It has been provided for the sake of completeness. `The default value is: "protospark-public-secret32-bytes"` |
-| PredictiveDecodeOptions.iv   | The iv for the algorithm, by default protospark will use a random one. If you wish a consistent decoder, please generate a fixed iv manually and provide this option                        |
-
 ## ✨ NEW ✨ Protobuf schema generation in javascript
 
 ---
 
-This functionality allows the creation of protobuf schemas using JavaScript entities, introducing `inheritance`` which is not inherent to the protocol buffer standard.
+This functionality allows the creation of protobuf schemas using JavaScript entities, introducing `inheritance` which is not inherent to the protocol buffer standard.
 
 **To utilize this feature, please keep in mind the following restrictions:**
 
@@ -131,31 +123,31 @@ The structure of the schema definition is recommended to be the following:
 
 ```javascript
 class <SchemaName>SchemaDefinition extends ProtosparkSchemaDefinition {
-    readonly <parameterName> = { type: ProtosparkPropertyType.<typeName> }
+    <parameterName> = { type: ProtosparkSchemaPropertyType.<typeName> }
 }
 ```
 
 Where:
 
 - `<SchemaName>`: The name of the desired message schema
-- `<parameterName>`: The parameter name in camel-case
-- `<typeName>`: Property of `ProtosparkPropertyType`
+- `<parameterName>`: The parameter name in **camelCase**
+- `<typeName>`: Property of `ProtosparkSchemaPropertyType`
 
 **Example:**
 
 ```javascript
 class MySchemaDefinition extends ProtosparkSchemaDefinition {
-    readonly someProperty = { type: ProtosparkPropertyType.bool };
-    // .. add more properties
+  someProperty = { type: ProtosparkSchemaPropertyType.bool };
+  // .. add more properties
 }
 
 class MySubSchemaDefinition extends ProtosparkSchemaDefinition {
-    readonly additionalProperty = { type: ProtosparkPropertyType.string };
-    // add more properties
+  additionalProperty = { type: ProtosparkSchemaPropertyType.string };
+  // add more properties
 }
 ```
 
-**Note:** Schema definitions themselves cannot contain properties.
+**Note:** `ProtosparkSchemaPropertyType` aims to offer support for a broad set of types, although it is still a work in progress and undergoes continuous development.
 
 **2. Define the schema:**
 
@@ -169,17 +161,57 @@ This schema will contain the "someProperty"
 
 ```javascript
 // pass all the defined schemas here that you wish in one file.
-const protoFile = SchemaGenerator.generate([MySchema]);
+const environment = protospark.ProtosparkSchemaGenerator.generate([MySchema]);
 
 // do anything with the file.. for example load in memory:
 const inMemoryCodec = protospark.ProtosparkCodec.fromProtoFile(file, options);
 
 // Or save in file, compile it into javascript and use as usual.
-protoFile.write(ProtoFileOutDir, fileName);
-// Don't forget to compile the generated proto files with the protobufjs-cli
+environment.write(ProtoFileOutDir, fileNameWithoutExtension);
+// Alternatively, to save only the proto file:
+// environment.file.write(ProtoFileOutDir, fileNameWithProtoExtension);
+
 const regularCodec = protospark.ProtosparkCodec.fromPath(ProtoFileOutDir);
 ```
 
+## ✨ NEW ✨ Predictive decoding
+
+---
+
+If you're seeking a method to bypass specifying the output type for the decode method, you can accomplish this using the new predictive decoding feature:
+
+```javascript
+// ...
+// Create schemas from the definitions
+const MySchemas = ProtosparkSchema.defineMultiple([
+  TestSchemaDefinition,
+  Test2SchemaDefinition,
+]);
+// Generate the environment from the schemas
+const environment = ProtosparkSchemaGenerator.generate(MySchemas);
+// encode something with the predictive algorithm, { verify: true } is default by the way
+const encoded = codec.encode(message, { verify: true }).predictive();
+// decode in a predictive way, supply the enviroment to the encoder to help infering the types
+const decoded = codec.decode(encoded).predictive(environment);
+// ...
+```
+
+**This feature is having the following limitations:**
+
+- The initial 32 bytes of the buffer must represent the type parameter in hexadecimal format.
+- The length of the type parameter cannot exceed 32 bytes, which should provide ample space for this parameter.
+- Expect an overhead increase, although ignorable, it's important to acknowledge.
+
+### Options
+
+You can provide these options when creating the codec: `protospark.ProtosparkCodec.fromPath(path, options)`
+
+| option                       | description                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PredictiveDecodeOptions.algo | The symmetric encryption algorithm e.g. "aes-256-cbc". `The default value is: "aes-256-cbc"`                                                                                                |
+| PredictiveDecodeOptions.key  | The secret key for the algorithm, specifying this parameter is not necessary. It has been provided for the sake of completeness. `The default value is: "protospark-public-secret32-bytes"` |
+| PredictiveDecodeOptions.iv   | The iv for the algorithm, by default protospark will use a random one. If you wish a consistent decoder, please generate a fixed iv manually and provide this option                        |
+
 ## Additional notes
 
-If you are missing some features, you can leverage the full functionality of the protobufjs schema with `codec.rawSchema()`.
+The package continues to evolve over time. If you find yourself in need of additional features, you can harness the complete functionality of the protobufjs schema with `codec.rawSchema()`.

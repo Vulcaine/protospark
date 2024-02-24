@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import protobuf from "protobufjs";
 import crypto from "crypto";
-import { ProtobufFile } from "./schema";
+import { ProtobufFile, SchemaEnvironment } from "./schema";
 
 const MAX_TYPE_SIZE_B = 32;
 const DEFAULT_ALGO = "aes-256-cbc";
@@ -44,20 +44,30 @@ class Decoder {
     return this._decode(DecodedType, this.buffer);
   }
 
-  predictive() {
-    return this._predictiveDecode(this.buffer);
+  predictive(schemaEnvironment: SchemaEnvironment) {
+    return this._predictiveDecode(this.buffer, schemaEnvironment);
   }
 
   private _predictiveDecode<T extends protobuf.Message<{}>>(
-    buffer: Uint8Array
+    buffer: Uint8Array,
+    schemaEnvironment: SchemaEnvironment
   ): T {
     const type = this._readTypeHeader(buffer);
     const decoded = this._decodeByType(type, buffer) as T;
-    const decriptedByType = {
-      ...decoded,
-      type,
-    };
-    return decriptedByType;
+    const dynamicType = schemaEnvironment.dynamicTypes.get(type);
+    if (!dynamicType) {
+      throw new Error(
+        `Type ${type} could not be inferred. The type context must contain this type. An option is to try using the non-predictive method with actual type supplied.`
+      );
+    }
+    const dynamicTypeInstance = new dynamicType[0]();
+
+    for (const [prop, value] of Object.entries(decoded)) {
+      dynamicTypeInstance[prop] = value;
+    }
+
+    dynamicTypeInstance["type"] = type;
+    return dynamicTypeInstance;
   }
 
   private _readTypeHeader(buffer) {
@@ -89,7 +99,16 @@ class Decoder {
     DecodedType: new () => T,
     buffer: Uint8Array
   ): T {
-    return this._decodeByType(DecodedType.name, buffer);
+    const decoded = this._decodeByType(DecodedType.name, buffer);
+    const dynamicTypeInstance = new DecodedType();
+
+    for (const [prop, value] of Object.entries(decoded)) {
+      dynamicTypeInstance[prop] = value;
+    }
+
+    dynamicTypeInstance["type"] = DecodedType.name;
+
+    return dynamicTypeInstance;
   }
 
   private _decodeByType<T extends protobuf.Message<{}>>(
@@ -100,8 +119,12 @@ class Decoder {
       this.schemaReader.checkCompiled();
       const SchemaType = this.schemaReader.checkIfExists(type);
       try {
-        const decoded = SchemaType.decode(buffer);
-        return decoded as T;
+        const decoded = SchemaType.decode(buffer) as T;
+        const updatedType = {
+          ...decoded,
+          type,
+        };
+        return updatedType;
       } catch (e) {
         throw new Error(
           "Invalid input format. Make sure the buffer is compatible with protobuf standards."
@@ -177,10 +200,7 @@ class Encoder {
   }
 
   private _encrypt(input: string) {
-    // Pad or truncate the message to MAX_TYPE_SIZE_B bytes
-    if (input.length < MAX_TYPE_SIZE_B) {
-      //input = input.padEnd(MAX_TYPE_SIZE_B - input.length, "$");
-    } else if (input.length > MAX_TYPE_SIZE_B) {
+    if (input.length > MAX_TYPE_SIZE_B) {
       throw new Error(`Input size cannot exceed ${MAX_TYPE_SIZE_B} bytes.`);
     }
 
@@ -396,7 +416,7 @@ class ProtobufCodec {
   }
 
   rawSchema() {
-    return this.schemaReader;
+    return this.schemaReader.rawSchema();
   }
 
   fromObject<T>(
@@ -425,4 +445,4 @@ class ProtobufCodec {
   }
 }
 
-export { ProtobufCodec, CodecOptions };
+export { ProtobufCodec, CodecOptions, MAX_TYPE_SIZE_B };
