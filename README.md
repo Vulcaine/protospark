@@ -117,13 +117,13 @@ This functionality allows the creation of protobuf schemas using JavaScript enti
 
 ### Usage
 
-**1. Begin with an empty schema definition:**
+**1. Begin with a non-empty schema definition:**
 
-The structure of the schema definition is recommended to be the following:
+The structure of the definition is recommended to be the following:
 
 ```javascript
 class <SchemaName>SchemaDefinition extends ProtosparkSchemaDefinition {
-    <parameterName> = { type: ProtosparkSchemaPropertyType.<typeName> }
+    <parameterName>[: ProtosparkSchemaTypeDescription] = { type: ProtosparkSchemaPropertyType.<typeName> }
 }
 ```
 
@@ -166,7 +166,7 @@ const environment = protospark.ProtosparkSchemaGenerator.generate([MySchema]);
 // do anything with the file.. for example load in memory:
 const inMemoryCodec = protospark.ProtosparkCodec.fromProtoFile(file, options);
 
-// Or save in file, compile it into javascript and use as usual.
+// Or compile it into javascript to use the message types:
 environment.write(ProtoFileOutDir, fileNameWithoutExtension);
 // Alternatively, to save only the proto file:
 // environment.file.write(ProtoFileOutDir, fileNameWithProtoExtension);
