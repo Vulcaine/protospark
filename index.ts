@@ -1,14 +1,15 @@
 ("use strict");
 
 import { Message } from "protobufjs";
-const { ProtobufCodec, CodecOptions } = require("./codec");
-const {
+import { ProtobufCodec, CodecOptions } from "./codec";
+import {
   PropertyType,
   Schema,
   SchemaDefinition,
+  SchemaEnvironment,
   SchemaGenerator,
   SchemaTypeDescription,
-} = require("./schema");
+} from "./schema";
 
 export {
   SchemaTypeDescription as ProtosparkSchemaTypeDescription,
@@ -19,4 +20,5 @@ export {
   ProtobufCodec as ProtosparkCodec,
   CodecOptions as ProtosparkCodecOptions,
   Message as ProtosparkMessage,
+  SchemaEnvironment as ProtosparkSchemaEnvironment,
 };

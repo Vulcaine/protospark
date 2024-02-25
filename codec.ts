@@ -9,6 +9,8 @@ const DEFAULT_ALGO = "aes-256-cbc";
 const DEFALT_KEY = "protospark-public-secret32-bytes";
 const DEFAULT_IV = crypto.randomBytes(16);
 
+type ProtosparkMessage<T extends object = object> = protobuf.Message<T>;
+
 interface CodecOptions {
   predictiveOptions?: PredictiveDecodeOptions;
 }
@@ -40,15 +42,17 @@ class Decoder {
     this.key = Buffer.from(this.options.predictiveOptions.key, "utf8");
   }
 
-  to<T extends protobuf.Message<{}>>(DecodedType: new () => T) {
+  to<T extends ProtosparkMessage>(DecodedType: new () => T) {
     return this._decode(DecodedType, this.buffer);
   }
 
-  predictive(schemaEnvironment: SchemaEnvironment) {
+  predictive<T extends ProtosparkMessage>(
+    schemaEnvironment: SchemaEnvironment
+  ): T {
     return this._predictiveDecode(this.buffer, schemaEnvironment);
   }
 
-  private _predictiveDecode<T extends protobuf.Message<{}>>(
+  private _predictiveDecode<T extends ProtosparkMessage>(
     buffer: Uint8Array,
     schemaEnvironment: SchemaEnvironment
   ): T {
@@ -95,7 +99,7 @@ class Decoder {
     }
   }
 
-  private _decode<T extends protobuf.Message<{}>>(
+  private _decode<T extends ProtosparkMessage>(
     DecodedType: new () => T,
     buffer: Uint8Array
   ): T {
@@ -111,7 +115,7 @@ class Decoder {
     return dynamicTypeInstance;
   }
 
-  private _decodeByType<T extends protobuf.Message<{}>>(
+  private _decodeByType<T extends ProtosparkMessage>(
     type: string,
     buffer: Uint8Array
   ): T {
@@ -240,7 +244,7 @@ class SchemaReader {
 
   toObject<T>(
     DecodedType: new () => T,
-    message: protobuf.Message<{}>,
+    message: ProtosparkMessage,
     options?: protobuf.IConversionOptions
   ) {
     const messageType = DecodedType.name;
@@ -251,7 +255,7 @@ class SchemaReader {
   fromObject<T>(
     DecodedType: new () => T,
     plainObject: { [k: string]: any }
-  ): protobuf.Message<{}> {
+  ): ProtosparkMessage {
     const messageType = DecodedType.name;
     const SchemaType = this.checkIfExists(messageType);
     return SchemaType.fromObject(plainObject);
@@ -422,13 +426,13 @@ class ProtobufCodec {
   fromObject<T>(
     DecodedType: new () => T,
     plainObject: { [k: string]: any }
-  ): protobuf.Message<{}> {
+  ): ProtosparkMessage {
     return this.schemaReader.fromObject(DecodedType, plainObject);
   }
 
   toObject<T>(
     DecodedType: new () => T,
-    message: protobuf.Message<{}>,
+    message: ProtosparkMessage,
     options?: protobuf.IConversionOptions
   ) {
     return this.schemaReader.toObject(DecodedType, message, options);
@@ -445,4 +449,4 @@ class ProtobufCodec {
   }
 }
 
-export { ProtobufCodec, CodecOptions, MAX_TYPE_SIZE_B };
+export { ProtobufCodec, CodecOptions, MAX_TYPE_SIZE_B, ProtosparkMessage };
