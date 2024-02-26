@@ -21,10 +21,29 @@ class TestSchemaDefinition extends SchemaDefinition {
   };
 }
 
+class TestNestedSchemaDefinition extends SchemaDefinition {
+  readonly testNestedParam: SchemaTypeDescription = {
+    type: TestSchemaDefinition,
+  };
+}
+
 class TestExtendedSchemaDefinition extends TestSchemaDefinition {
   readonly additionalParam: SchemaTypeDescription = {
     type: PropertyType.bool,
   };
+}
+
+class TestMessage extends protobuf.Message {
+  readonly testParamString: string;
+  readonly testParamBool: boolean;
+}
+
+class TestNestedMessage extends protobuf.Message {
+  readonly testNestedParam: TestMessage;
+}
+
+class TestExtendedMessage extends TestMessage {
+  readonly additionalParam: boolean;
 }
 
 describe("Performance", () => {
@@ -34,21 +53,17 @@ describe("Performance", () => {
       readonly testParamString: string;
       readonly testParamBool: boolean;
     }
-
     const TestSchema = Schema.define(TestSchemaDefinition);
     const schemaEnvironment = SchemaGenerator.generate([TestSchema]);
     const codec = ProtobufCodec.fromProtoFile(schemaEnvironment.file);
-
     const expected = {
       type: TestMessage.name,
       testParamString: "Hello",
       testParamBool: false,
     };
-
     const times = 1000;
     let runtime = 0;
     let start = Date.now();
-
     for (let i = 0; i < times; i++) {
       const encoded = codec
         .encode({
@@ -62,7 +77,6 @@ describe("Performance", () => {
       runtime += Date.now() - start;
       start = Date.now();
     }
-
     const maxMs = 30;
     expect(runtime + thresholdMs <= maxMs).toBeTruthy();
   });
@@ -124,16 +138,31 @@ describe("Schema", () => {
     expect(exists).toBeTruthy;
   });
 
+  it("should work with nested types", () => {
+    const TestSchemas = Schema.defineMultiple([
+      TestSchemaDefinition,
+      TestNestedSchemaDefinition,
+    ]);
+    const schemaEnvironment = SchemaGenerator.generate(TestSchemas);
+    const codec = ProtobufCodec.fromProtoFile(schemaEnvironment.file);
+
+    const data = {
+      type: TestNestedMessage.name,
+      testNestedParam: {
+        testParamString: "Hello",
+        testParamBool: true,
+      },
+    };
+
+    const encoded = codec.encode(data).execute().finish();
+    const decoded = codec.decode(encoded).to(TestNestedMessage);
+    console.log(decoded["testNestedParam"]);
+    expect(decoded["type"]).toBeTruthy();
+    expect(decoded["testNestedParam"]).toEqual(data["testNestedParam"]);
+    expect(decoded["type"]).toEqual(data["type"]);
+  });
+
   it("should work with inheritance", () => {
-    class TestMessage extends protobuf.Message {
-      readonly testParamString: string;
-      readonly testParamBool: boolean;
-    }
-
-    class TestExtendedMessage extends TestMessage {
-      readonly additionalParam: boolean;
-    }
-
     const TestSchemas = Schema.defineMultiple([
       TestSchemaDefinition,
       TestExtendedSchemaDefinition,
@@ -197,7 +226,12 @@ describe("Codec", () => {
     write: () => {},
   };
 
-  schemaEnvironment.dynamicTypes.set("CorrectMessage", [CorrectMessage, ""]);
+  schemaEnvironment.dynamicTypes.set("CorrectMessage", {
+    ctor: CorrectMessage,
+    name: "CorrectMessage",
+    parent: "",
+    propertyMap: {},
+  });
 
   it("should encode and decode a class correctly given protobuf schema", () => {
     const expected = { type: "CorrectMessage", someField: "hello" };

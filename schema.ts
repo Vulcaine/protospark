@@ -50,6 +50,65 @@ enum PropertyType {
   Value = "google.protobuf.Value",
 }
 
+const ProtoToJavascriptProperty = (protoType: PropertyType) => {
+  switch (protoType) {
+    case PropertyType.double:
+    case PropertyType.float:
+    case PropertyType.int32:
+    case PropertyType.int64:
+    case PropertyType.uint32:
+    case PropertyType.sint32:
+    case PropertyType.fixed32:
+    case PropertyType.sfixed32:
+      return "number";
+    case PropertyType.bool:
+      return "boolean";
+    case PropertyType.string:
+      return "string";
+    case PropertyType.bytes:
+      return "Uint8Array";
+    case PropertyType.Any:
+    case PropertyType.Api:
+    case PropertyType.Enum:
+    case PropertyType.EnumValue:
+    case PropertyType.Field:
+    case PropertyType.Cardinality:
+    case PropertyType.Kind:
+    case PropertyType.FieldMask:
+    case PropertyType.Method:
+    case PropertyType.Mixin:
+    case PropertyType.Option:
+    case PropertyType.SourceContext:
+    case PropertyType.Syntax:
+    case PropertyType.Type:
+    case PropertyType.Value:
+      return "any"; // or specific object if available
+    case PropertyType.BoolValue:
+    case PropertyType.DoubleValue:
+      return "number";
+    case PropertyType.BytesValue:
+      return "Uint8Array";
+    case PropertyType.Duration:
+      return "string"; // or a custom object
+    case PropertyType.Empty:
+      return "{}";
+    case PropertyType.Int32Value:
+    case PropertyType.Int64Value:
+    case PropertyType.UInt32Value:
+    case PropertyType.UInt64Value:
+    case PropertyType.FloatValue:
+    case PropertyType.StringValue:
+    case PropertyType.Struct:
+      return "any"; // or specific object if available
+    case PropertyType.Timestamp:
+      return "Date"; // or a custom Date object
+    case PropertyType.ListValue:
+      return "Array<any>"; // or specific object if available
+    default:
+      throw new Error(`Property ${protoType} is not supported.`);
+  }
+};
+
 const ImportMapping = {
   [`${PropertyType.Timestamp}`]: "google/protobuf/timestamp.proto",
   [`${PropertyType.Duration}`]: "google/protobuf/duration.proto",
@@ -105,9 +164,20 @@ class FileWriter {
   }
 }
 
+interface SchemaWriteOptions {
+  format: string;
+}
+
+interface Clazz {
+  ctor: any;
+  name: string;
+  parent: string;
+  propertyMap: { [k: string]: SchemaTypeDescription };
+}
+
 class SchemaEnvironment {
   readonly file: ProtobufFile;
-  readonly dynamicTypes: Map<string, [any, string]>;
+  readonly dynamicTypes: Map<string, Clazz>;
 
   constructor(file: ProtobufFile, dynamicTypes: Map<string, any>) {
     this.file = file;
@@ -119,19 +189,48 @@ class SchemaEnvironment {
    * @param outdir the directory to write into
    * @param filename the filename without extension
    */
-  write(outdir, filename) {
+  write(outdir, filename, options?: SchemaWriteOptions) {
     this.file.write(outdir, filename + ".proto");
-    let classContent = 'const { ProtosparkMessage } = require("protospark");\n';
+    const isTS = options && options.format && options.format == "ts";
+
+    let classContent = isTS
+      ? 'import { ProtosparkMessage } from "protospark";\n'
+      : 'const { ProtosparkMessage } = require("protospark");\n';
+
+    const modifier = isTS ? "readonly" : "";
 
     for (const [key, dynamicType] of this.dynamicTypes) {
-      classContent += this.dynamicTypes.get(key)[1] + "\n";
+      const clazz: Clazz = dynamicType;
+      let clazzStr = `class ${clazz.name} extends ${clazz.parent} {\n`;
+
+      for (const [typeName, property] of clazz.propertyMap as any) {
+        const typeDesc = property as SchemaTypeDescription;
+
+        const typeStr =
+          typeDesc.type instanceof SchemaDefinition
+            ? typeDesc.type.toString()
+            : ProtoToJavascriptProperty(typeDesc.type as PropertyType);
+
+        if (!typeStr) {
+          throw new Error(`Type ${typeDesc.type} is not supported.`);
+        }
+
+        const type = isTS ? `:${typeStr}` : "";
+        clazzStr += `${modifier} ${typeName}${type};\n`;
+      }
+
+      clazzStr += "}";
+      classContent += clazzStr + "\n";
     }
 
+    const exportKeyword = isTS ? "export " : "module.exports =";
+    const extension = isTS ? "ts" : "js";
+
     classContent +=
-      "\nmodule.exports = {" +
+      `\n${exportKeyword} {` +
       Array.from(this.dynamicTypes.keys()).join(",") +
       "}";
-    FileWriter.write(outdir, filename + ".js", classContent);
+    FileWriter.write(outdir, filename + `.${extension}`, classContent);
   }
 }
 
@@ -160,13 +259,12 @@ class SchemaGenerator {
 
     let body = "";
 
-    const dynamicTypes: Map<string, any> = new Map();
+    const dynamicTypes: Map<string, Clazz> = new Map();
 
     for (const schema of schemas) {
       const schemaInstance = new schema.SchemaType();
       SchemaGenerator._validateSchema(schema);
-      const messageName =
-        schema.SchemaType.name.replace("SchemaDefinition", "") + "Message";
+      const messageName = this._getMessageName(schema.SchemaType.name);
 
       if (messageName.length > MAX_TYPE_SIZE_B) {
         throw new Error(
@@ -185,9 +283,13 @@ class SchemaGenerator {
 
       let index = 1;
       for (const [propertyName, description] of Object.entries(propertyMap)) {
-        body += ` ${SchemaGenerator._getPrefix(description)} ${
-          description.type
-        } ${this.camelToSnake(propertyName)} = ${index++};\n`;
+        const typeStr = this._instanceof(description.type, SchemaDefinition)
+          ? this._getMessageName((description.type as any).name)
+          : description.type;
+
+        body += ` ${SchemaGenerator._getPrefix(
+          description
+        )} ${typeStr} ${this.camelToSnake(propertyName)} = ${index++};\n`;
       }
 
       dynamicTypes.set(
@@ -203,6 +305,10 @@ class SchemaGenerator {
     return new SchemaEnvironment(new ProtobufFile(file), dynamicTypes);
   }
 
+  private static _getMessageName(schemaDefName: string) {
+    return schemaDefName.replace("SchemaDefinition", "") + "Message";
+  }
+
   private static _defineClass(schema, messageName, propertyMap) {
     const parents = schema.parents();
     const firstSuper = parents.length > 0 ? parents[0] : null;
@@ -213,15 +319,19 @@ class SchemaGenerator {
     let parentExtend = "ProtosparkMessage";
 
     if (firstSuper && firstSuper.constructor.name != SchemaDefinition.name) {
-      parentExtend =
-        firstSuper.constructor.name.replace("SchemaDefinition", "") + "Message";
+      parentExtend = this._getMessageName(firstSuper.constructor.name);
     }
 
     const clazz = `class ${messageName} ${
       "extends " + parentExtend
     } {\n\t${properties}\n}`;
 
-    return [new Function(clazz), clazz];
+    return {
+      ctor: new Function(clazz),
+      name: messageName,
+      parent: parentExtend,
+      propertyMap,
+    } as Clazz;
   }
 
   private static _addProperties(schemaInstance, propertyMap): string[] {
@@ -279,12 +389,34 @@ class SchemaGenerator {
 
       if (
         !isSchemaType &&
-        !(schemaInstance[propertyName]["type"] instanceof SchemaDefinition)
+        !this._instanceof(
+          schemaInstance[propertyName]["type"],
+          SchemaDefinition
+        )
       ) {
         throw new Error(
           `Illegal type defined for property ${propertyName}, must be either PropertyType or SchemaDefinition`
         );
       }
+    }
+  }
+
+  private static _instanceof(obj, what) {
+    try {
+      let prototype = Object.getPrototypeOf(obj.prototype);
+      const whatPrototype = what.prototype;
+
+      while (prototype) {
+        if (prototype == whatPrototype) {
+          return true;
+        }
+
+        prototype = Object.getPrototypeOf(prototype);
+      }
+
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 

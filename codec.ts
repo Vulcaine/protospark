@@ -42,7 +42,7 @@ class Decoder {
     this.key = Buffer.from(this.options.predictiveOptions.key, "utf8");
   }
 
-  to<T extends ProtosparkMessage>(DecodedType: new () => T) {
+  to<T extends ProtosparkMessage>(DecodedType: new () => T): T {
     return this._decode(DecodedType, this.buffer);
   }
 
@@ -57,14 +57,16 @@ class Decoder {
     schemaEnvironment: SchemaEnvironment
   ): T {
     const type = this._readTypeHeader(buffer);
-    const decoded = this._decodeByType(type, buffer) as T;
     const dynamicType = schemaEnvironment.dynamicTypes.get(type);
+
     if (!dynamicType) {
       throw new Error(
         `Type ${type} could not be inferred. The type context must contain this type. An option is to try using the non-predictive method with actual type supplied.`
       );
     }
-    const dynamicTypeInstance = new dynamicType[0]();
+
+    const decoded = this._decodeByType(type, buffer) as T;
+    const dynamicTypeInstance = new dynamicType.ctor();
 
     for (const [prop, value] of Object.entries(decoded)) {
       dynamicTypeInstance[prop] = value;
@@ -298,7 +300,7 @@ class SchemaReader {
   checkIfExists(messageType: string): protobuf.Type {
     try {
       const SchemaType = this.compiledSchema.lookupType(messageType);
-      return SchemaType;
+      return SchemaType as protobuf.Type;
     } catch (e) {
       throw new Error(
         `Type ${messageType} not found. Make sure the schema was compiled successfully and that the type exists.`
