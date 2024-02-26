@@ -215,8 +215,8 @@ class SchemaEnvironment {
           throw new Error(`Type ${typeDesc.type} is not supported.`);
         }
 
-        const type = isTS ? `:${typeStr}` : "";
-        clazzStr += `${modifier} ${typeName}${type};\n`;
+        const type = isTS ? `: ${typeStr}` : "";
+        clazzStr += `\t${modifier} ${typeName}${type};\n`;
       }
 
       clazzStr += "}";
