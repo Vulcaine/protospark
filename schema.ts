@@ -318,6 +318,7 @@ class SchemaGenerator {
         messageName,
         this._defineClass(schema, messageName, propertyMap)
       );
+
       body += `}\n\n`;
     }
 
@@ -327,12 +328,13 @@ class SchemaGenerator {
     return new SchemaEnvironment(new ProtobufFile(file), dynamicTypes);
   }
 
-  private static _defineClass(schema, messageName, propertyMap) {
+  private static _defineClass(
+    schema,
+    messageName,
+    propertyMap: { [k: string]: SchemaTypeDescription }
+  ) {
     const parents = schema.parents();
     const firstSuper = parents.length > 0 ? parents[0] : null;
-    const properties = Object.entries(propertyMap)
-      .map((entry) => `${entry[0]};`)
-      .join("\n\t");
 
     let parentExtend = "ProtosparkMessage";
 
@@ -340,16 +342,27 @@ class SchemaGenerator {
       parentExtend = _getMessageName(firstSuper.constructor.name);
     }
 
-    const clazz = `class ${messageName} ${
-      "extends " + parentExtend
-    } {\n\t${properties}\n}`;
-
     return {
-      ctor: new Function(clazz),
+      ctor: {
+        [messageName]: function () {
+          for (const key of Object.keys(propertyMap)) {
+            if (!this._isContiguousString(key)) {
+              throw new Error("Malicious string detected: " + key);
+            }
+            this[key] = undefined;
+          }
+        },
+      },
       name: messageName,
       parent: parentExtend,
       propertyMap,
     } as Clazz;
+  }
+
+  static _isContiguousString(key) {
+    // Regular expression to check if the key is a contiguous string
+    const regex = /^[a-zA-Z_$][0-9a-zA-Z_$]*$/;
+    return regex.test(key);
   }
 
   private static _addProperties(schemaInstance, propertyMap): string[] {

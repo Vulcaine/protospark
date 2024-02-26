@@ -66,7 +66,7 @@ class Decoder {
     }
 
     const decoded = this._decodeByType(type, buffer) as T;
-    const dynamicTypeInstance = new dynamicType.ctor();
+    const dynamicTypeInstance = new dynamicType.ctor[type]();
 
     for (const [prop, value] of Object.entries(decoded)) {
       dynamicTypeInstance[prop] = value;

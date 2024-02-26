@@ -156,7 +156,6 @@ describe("Schema", () => {
 
     const encoded = codec.encode(data).execute().finish();
     const decoded = codec.decode(encoded).to(TestNestedMessage);
-    console.log(decoded["testNestedParam"]);
     expect(decoded["type"]).toBeTruthy();
     expect(decoded["testNestedParam"]).toEqual(data["testNestedParam"]);
     expect(decoded["type"]).toEqual(data["type"]);
@@ -227,7 +226,9 @@ describe("Codec", () => {
   };
 
   schemaEnvironment.dynamicTypes.set("CorrectMessage", {
-    ctor: CorrectMessage,
+    ctor: {
+      ["CorrectMessage"]: function () {},
+    },
     name: "CorrectMessage",
     parent: "",
     propertyMap: {},
