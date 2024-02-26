@@ -203,7 +203,7 @@ class SchemaEnvironment {
       const clazz: Clazz = dynamicType;
       let clazzStr = `class ${clazz.name} extends ${clazz.parent} {\n`;
 
-      for (const [typeName, property] of clazz.propertyMap as any) {
+      for (const [typeName, property] of Object.entries(clazz.propertyMap)) {
         const typeDesc = property as SchemaTypeDescription;
 
         const typeStr =
