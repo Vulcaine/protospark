@@ -161,7 +161,13 @@ This schema will contain the "someProperty"
 
 ```javascript
 // pass all the defined schemas here that you wish in one file.
-const environment = protospark.ProtosparkSchemaGenerator.generate([MySchema]);
+const options = {
+  format: "js", // this is the default, use "ts" for typescript generation
+};
+const environment = protospark.ProtosparkSchemaGenerator.generate(
+  [MySchema],
+  options
+);
 
 // do anything with the file.. for example load in memory:
 const inMemoryCodec = protospark.ProtosparkCodec.fromProtoFile(file, options);

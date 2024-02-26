@@ -6,6 +6,29 @@ class SchemaDefinition {
   constructor() {}
 }
 
+function _getMessageName(schemaDefName: string) {
+  return schemaDefName.replace("SchemaDefinition", "") + "Message";
+}
+
+function _instanceof(obj, what) {
+  try {
+    let prototype = Object.getPrototypeOf(obj.prototype);
+    const whatPrototype = what.prototype;
+
+    while (prototype) {
+      if (prototype == whatPrototype) {
+        return true;
+      }
+
+      prototype = Object.getPrototypeOf(prototype);
+    }
+
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 enum PropertyType {
   double = "double",
   float = "float",
@@ -206,10 +229,9 @@ class SchemaEnvironment {
       for (const [typeName, property] of Object.entries(clazz.propertyMap)) {
         const typeDesc = property as SchemaTypeDescription;
 
-        const typeStr =
-          typeDesc.type instanceof SchemaDefinition
-            ? typeDesc.type.toString()
-            : ProtoToJavascriptProperty(typeDesc.type as PropertyType);
+        const typeStr = _instanceof(typeDesc.type, SchemaDefinition)
+          ? _getMessageName((typeDesc.type as any).name)
+          : ProtoToJavascriptProperty(typeDesc.type as PropertyType);
 
         if (!typeStr) {
           throw new Error(`Type ${typeDesc.type} is not supported.`);
@@ -264,7 +286,7 @@ class SchemaGenerator {
     for (const schema of schemas) {
       const schemaInstance = new schema.SchemaType();
       SchemaGenerator._validateSchema(schema);
-      const messageName = this._getMessageName(schema.SchemaType.name);
+      const messageName = _getMessageName(schema.SchemaType.name);
 
       if (messageName.length > MAX_TYPE_SIZE_B) {
         throw new Error(
@@ -283,8 +305,8 @@ class SchemaGenerator {
 
       let index = 1;
       for (const [propertyName, description] of Object.entries(propertyMap)) {
-        const typeStr = this._instanceof(description.type, SchemaDefinition)
-          ? this._getMessageName((description.type as any).name)
+        const typeStr = _instanceof(description.type, SchemaDefinition)
+          ? _getMessageName((description.type as any).name)
           : description.type;
 
         body += ` ${SchemaGenerator._getPrefix(
@@ -305,10 +327,6 @@ class SchemaGenerator {
     return new SchemaEnvironment(new ProtobufFile(file), dynamicTypes);
   }
 
-  private static _getMessageName(schemaDefName: string) {
-    return schemaDefName.replace("SchemaDefinition", "") + "Message";
-  }
-
   private static _defineClass(schema, messageName, propertyMap) {
     const parents = schema.parents();
     const firstSuper = parents.length > 0 ? parents[0] : null;
@@ -319,7 +337,7 @@ class SchemaGenerator {
     let parentExtend = "ProtosparkMessage";
 
     if (firstSuper && firstSuper.constructor.name != SchemaDefinition.name) {
-      parentExtend = this._getMessageName(firstSuper.constructor.name);
+      parentExtend = _getMessageName(firstSuper.constructor.name);
     }
 
     const clazz = `class ${messageName} ${
@@ -389,34 +407,12 @@ class SchemaGenerator {
 
       if (
         !isSchemaType &&
-        !this._instanceof(
-          schemaInstance[propertyName]["type"],
-          SchemaDefinition
-        )
+        !_instanceof(schemaInstance[propertyName]["type"], SchemaDefinition)
       ) {
         throw new Error(
           `Illegal type defined for property ${propertyName}, must be either PropertyType or SchemaDefinition`
         );
       }
-    }
-  }
-
-  private static _instanceof(obj, what) {
-    try {
-      let prototype = Object.getPrototypeOf(obj.prototype);
-      const whatPrototype = what.prototype;
-
-      while (prototype) {
-        if (prototype == whatPrototype) {
-          return true;
-        }
-
-        prototype = Object.getPrototypeOf(prototype);
-      }
-
-      return false;
-    } catch (e) {
-      return false;
     }
   }
 
