@@ -109,6 +109,8 @@ const decoded = codec.decode(buffer).to(MyAwesomeMessage);
 
 This functionality allows the creation of protobuf schemas using JavaScript entities, introducing `inheritance` which is not inherent to the protocol buffer standard.
 
+**!!!IMPORTANT!!!** Recommended to use with TypeScript
+
 **To utilize this feature, please keep in mind the following restrictions:**
 
 - Every entity must extend the `ProtosparkSchemaDefinition` class.
@@ -141,7 +143,7 @@ class MySchemaDefinition extends ProtosparkSchemaDefinition {
   // .. add more properties
 }
 
-class MySubSchemaDefinition extends ProtosparkSchemaDefinition {
+class MySubSchemaDefinition extends MySchemaDefinition {
   additionalProperty = { type: ProtosparkSchemaPropertyType.string };
   // add more properties
 }
@@ -152,7 +154,10 @@ class MySubSchemaDefinition extends ProtosparkSchemaDefinition {
 **2. Define the schema:**
 
 ```javascript
-const MySchema = ProtosparkSchema.define(MySchemaDefinition);
+const MySchema = ProtosparkSchema.defineMultiple([
+  MySchemaDefinition,
+  MySubSchemaDefinition,
+]);
 ```
 
 This schema will contain the "someProperty"
@@ -162,23 +167,37 @@ This schema will contain the "someProperty"
 ```javascript
 // pass all the defined schemas here that you wish in one file.
 const options = {
-  format: "js", // this is the default, use "ts" for typescript generation
+  format: "ts", // this is the default, use "ts" for typescript generation
 };
-const environment = protospark.ProtosparkSchemaGenerator.generate(
-  [MySchema],
-  options
-);
+
+const environment = protospark.ProtosparkSchemaGenerator.generate(MySchema);
 
 // do anything with the file.. for example load in memory:
-const inMemoryCodec = protospark.ProtosparkCodec.fromProtoFile(file, options);
+const inMemoryCodec = ProtosparkCodec.fromProtoFile(environment.file);
 
 // Or compile it into javascript to use the message types:
-environment.write(ProtoFileOutDir, fileNameWithoutExtension);
+// !!!!IMPORTANT: Setup generation in a different script
+environment.write("./generated", "test", options);
+
+import { MyMessage } from "./generated/test";
+const encoded = inMemoryCodec
+  .encode({
+    type: MyMessage.name,
+    someProperty: true,
+  })
+  .execute()
+  .finish();
+
+const decoded = inMemoryCodec.decode(encoded).to(MyMessage);
+console.log(decoded); // MyMessage { type: 'MyMessage', someProperty: true }
+
 // Alternatively, to save only the proto file:
 // environment.file.write(ProtoFileOutDir, fileNameWithProtoExtension);
 
 const regularCodec = protospark.ProtosparkCodec.fromPath(ProtoFileOutDir);
 ```
+
+**!!!IMPORTANT!!!** Prior to utilizing the generated files, ensure the generation process has been completed. It's advisable to establish a distinct generation script that can be executed preceding the application's execution.
 
 ## ✨ NEW ✨ Predictive decoding
 

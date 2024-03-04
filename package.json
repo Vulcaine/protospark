@@ -1,6 +1,7 @@
 {
   "name": "protospark",
-  "version": "2.0.5",
+  "author": "Aron Gere",
+  "version": "2.0.6",
   "description": "A streamlined solution for encoding and decoding protocol buffers effortlessly, ensuring type safety throughout the process.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -31,5 +32,9 @@
     "typescript",
     "protobufjs"
   ],
-  "license": "BSD-3-Clause"
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vulcaine/protospark"
+  }
 }
